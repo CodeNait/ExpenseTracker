@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Expense Tracker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 20px auto;
+      padding: 20px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+    }
+    input[type="text"], select, input[type="number"], input[type="date"] {
+      margin: 10px 0;
+      padding: 10px;
+    }
+    button {
+      padding: 10px;
+      cursor: pointer;
+    }
+    #balance {
+      margin-top: 20px;
+      text-align: center;
+      font-weight: bold;
+    }
+    #expenses {
+      margin-top: 20px;
+    }
+    #expenses ul {
+      list-style-type: none;
+      padding: 0;
+    }
+    #expenses li {
+      border-bottom: 1px solid #ccc;
+      padding: 10px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #expenses li button {
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Expense Tracker</h1>
+    <form id="expenseForm">
+      <input type="text" id="description" placeholder="Description" required>
+      <select id="payer" required>
+        <option value="">Select Payer</option>
+        <option value="Nait">Paid fully by Nait</option>
+        <option value="Ash">Paid fully by Ash</option>
+        <option value="split">Split equally</option>
+      </select>
+      <input type="number" id="amount" placeholder="Amount" step="0.01" required>
+      <input type="date" id="expenseDate" required>
+      <button type="submit">Add Expense</button>
+    </form>
+    <div id="balance"></div>
+    <div id="expenses">
+      <h2>Expense Record</h2>
+      <ul id="expenseList"></ul>
+    </div>
+    <div id="settleUp">
+      <h2>Settle Up</h2>
+      <select id="settler" required>
+        <option value="">Select Settler</option>
+        <option value="Nait">Nait</option>
+        <option value="Ash">Ash</option>
+      </select>
+      <input type="number" id="settleAmount" placeholder="Amount">
+      <button id="settleButton">Settle Up</button>
+    </div>
+    <div id="resetBalance">
+      <h2>Reset Balance</h2>
+      <button id="resetButton">Reset</button>
+    </div>
+  </div>
+
+  <script>
+    let naitTotal = 0;
+    let ashTotal = 0;
+    const expenses = [];
+
+    // Load expenses and balance from localStorage on page load
+    window.addEventListener('load', function() {
+      if (localStorage.getItem('expenses')) {
+        expenses.push(...JSON.parse(localStorage.getItem('expenses')));
+        updateExpenseList();
+      }
+      if (localStorage.getItem('balance')) {
+        const balance = JSON.parse(localStorage.getItem('balance'));
+        naitTotal = balance.naitTotal;
+        ashTotal = balance.ashTotal;
+        updateBalance();
+      }
+    });
+
+    const expenseForm = document.getElementById('expenseForm');
+    const balanceDisplay = document.getElementById('balance');
+    const expenseList = document.getElementById('expenseList');
+    const settleAmountInput = document.getElementById('settleAmount');
+    const settleButton = document.getElementById('settleButton');
+    const resetButton = document.getElementById('resetButton');
+
+    expenseForm.addEventListener('submit', function(event) {
+      event.preventDefault();
+      
+      const description = document.getElementById('description').value;
+      const payer = document.getElementById('payer').value;
+      const amount = parseFloat(document.getElementById('amount').value);
+      const expenseDate = document.getElementById('expenseDate').value;
+
+      if (payer === 'Nait') {
+        naitTotal += amount;
+      } else if (payer === 'Ash') {
+        ashTotal += amount;
+      } else if (payer === 'split') {
+        naitTotal += amount / 2;
+        ashTotal += amount / 2;
+      }
+
+      const timestamp = new Date().toLocaleString();
+      const expense = { description: `${description} (${expenseDate})`, payer, amount, timestamp };
+      expenses.push(expense);
+
+      // Save expenses to localStorage
+      localStorage.setItem('expenses', JSON.stringify(expenses));
+
+      // Save balance to localStorage
+      const balance = { naitTotal, ashTotal };
+      localStorage.setItem('balance', JSON.stringify(balance));
+
+      updateBalance();
+      updateExpenseList();
+      expenseForm.reset();
+    });
+
+    settleButton.addEventListener('click', function() {
+      const settler = document.getElementById('settler').value;
+      const settleAmount = parseFloat(settleAmountInput.value);
+
+      if (!isNaN(settleAmount) && settler) {
+        if (settler === 'Nait') {
+          ashTotal -= settleAmount;
+        } else if (settler === 'Ash') {
+          naitTotal -= settleAmount;
+        }
+        updateBalance();
+      }
+      settleAmountInput.value = '';
+    });
+
+    resetButton.addEventListener('click', function() {
+      naitTotal = 0;
+      ashTotal = 0;
+      localStorage.removeItem('balance');
+      updateBalance();
+    });
+
+    function updateBalance() {
+      let balanceText = '';
+
+      if (naitTotal > ashTotal) {
+        const amountOwed = naitTotal - ashTotal;
+        balanceText = `Ash owes Nait: $${amountOwed.toFixed(2)}`;
+      } else if (ashTotal > naitTotal) {
+        const amountOwed = ashTotal - naitTotal;
+        balanceText = `Nait owes Ash: $${amountOwed.toFixed(2)}`;
+      } else {
+        balanceText = 'Balanced!';
+      }
+
+      balanceDisplay.textContent = balanceText;
+    }
+
+    function updateExpenseList() {
+      expenseList.innerHTML = '';
+      expenses.forEach((expense, index) => {
+        const listItem = document.createElement('li');
+        listItem.innerHTML = `
+          <span><strong>${expense.description}</strong> - ${expense.payer}: $${expense.amount.toFixed(2)} 
+          <span style="font-size: 0.8em;">(Entered: ${expense.timestamp})</span></span>
+          <button onclick="deleteExpense(${index})">Delete</button>`;
+        expenseList.appendChild(listItem);
+      });
+    }
+
+    function deleteExpense(index) {
+      const expense = expenses[index];
+      if (expense.payer === 'Nait') {
+        naitTotal -= expense.amount;
+      } else if (expense.payer === 'Ash') {
+        ashTotal -= expense.amount;
+      } else if (expense.payer === 'split') {
+        naitTotal -= expense.amount / 2;
+        ashTotal -= expense.amount / 2;
+      }
+
+      expenses.splice(index, 1);
+      localStorage.setItem('expenses', JSON.stringify(expenses));
+      updateExpenseList();
+      updateBalance();
+    }
+  </script>
+</body>
+</html>
